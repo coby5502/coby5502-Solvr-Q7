@@ -67,11 +67,11 @@ export function HomePage() {
             </a>
             <Button
               variant="primary"
-              className="flex items-center px-3 py-2 text-sm"
+              className="flex items-center"
               onClick={e => { e.stopPropagation(); handleDownloadCSV(repo) }}
               disabled={downloading === repo.path}
             >
-              <Download className="w-5 h-5 mr-2" />
+              <Download className="w-4 h-4" />
               {downloading === repo.path ? '다운로드 중...' : 'CSV 다운로드'}
             </Button>
           </div>

@@ -1,10 +1,38 @@
 import { useState, useMemo } from 'react'
 import { Release } from '../../types/release'
 import { Loading } from '../common/Loading'
+import ReactMarkdown from 'react-markdown'
 
 interface ReleaseListProps {
   releases: Release[]
   isLoading: boolean
+}
+
+// 한국 시간대로 변환하는 유틸리티 함수
+function toKST(date: Date): Date {
+  return new Date(date.getTime() + (9 * 60 * 60 * 1000))
+}
+
+// 한국 시간 포맷팅 함수
+function formatKSTDate(date: Date): string {
+  const kstDate = toKST(date)
+  return kstDate.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+// 한국 시간 날짜만 포맷팅 함수
+function formatKSTDateOnly(date: Date): string {
+  const kstDate = toKST(date)
+  return kstDate.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
 }
 
 const PAGE_SIZE = 10
@@ -103,7 +131,7 @@ export function ReleaseList({ releases, isLoading }: ReleaseListProps) {
                 className="cursor-pointer hover:bg-gray-50"
               >
                 <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px' }} className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap overflow-hidden truncate">{release.tag_name}</td>
-                <td style={{ width: '100px', minWidth: '100px', maxWidth: '100px' }} className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap overflow-hidden truncate">{new Date(release.published_at).toLocaleDateString()}</td>
+                <td style={{ width: '100px', minWidth: '100px', maxWidth: '100px' }} className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap overflow-hidden truncate">{formatKSTDateOnly(new Date(release.published_at))}</td>
                 <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px' }} className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap overflow-hidden truncate">{release.name}</td>
               </tr>
             ))}
@@ -111,8 +139,14 @@ export function ReleaseList({ releases, isLoading }: ReleaseListProps) {
         </table>
       </div>
       {selectedRelease && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={() => setSelectedRelease(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex justify-between items-start p-6 border-b">
               <h3 className="text-lg font-semibold text-gray-900">{selectedRelease.name}</h3>
               <button 
@@ -129,10 +163,10 @@ export function ReleaseList({ releases, isLoading }: ReleaseListProps) {
               <div className="text-sm text-gray-500 mb-4">
                 <span className="font-medium">버전:</span> {selectedRelease.tag_name}
                 <span className="mx-2">•</span>
-                <span className="font-medium">배포일:</span> {new Date(selectedRelease.published_at).toLocaleDateString()}
+                <span className="font-medium">배포일:</span> {formatKSTDate(new Date(selectedRelease.published_at))}
               </div>
               <div className="prose prose-sm max-w-none">
-                <div className="whitespace-pre-wrap text-gray-700">{selectedRelease.body}</div>
+                <ReactMarkdown className="whitespace-pre-wrap text-gray-700">{selectedRelease.body || ''}</ReactMarkdown>
               </div>
             </div>
           </div>

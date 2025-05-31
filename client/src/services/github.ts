@@ -78,14 +78,14 @@ export function calculateStats(releases: Release[]) {
     }
   }
 
-  const now = new Date()
+  const now = toKST(new Date())
   const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
   const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
   // 연간 통계
   const yearlyReleases = releases.filter(release => 
-    new Date(release.published_at) >= oneYearAgo
+    toKST(new Date(release.published_at)) >= oneYearAgo
   ).length
 
   // 월간 통계
@@ -93,11 +93,11 @@ export function calculateStats(releases: Release[]) {
     const month = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
     const count = releases.filter(release => {
-      const date = new Date(release.published_at)
+      const date = toKST(new Date(release.published_at))
       return date >= month && date < nextMonth
     }).length
     return {
-      month: month.toLocaleDateString('ko-KR', { month: 'short' }),
+      month: month.toLocaleDateString('ko-KR', { month: 'long' }),
       count
     }
   }).reverse()
@@ -107,48 +107,32 @@ export function calculateStats(releases: Release[]) {
     const day = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
     const nextDay = new Date(now.getTime() - (i - 1) * 24 * 60 * 60 * 1000)
     const count = releases.filter(release => {
-      const date = new Date(release.published_at)
+      const date = toKST(new Date(release.published_at))
       return date >= day && date < nextDay
     }).length
     return {
-      day: day.toLocaleDateString('ko-KR', { weekday: 'short' }),
+      day: day.toLocaleDateString('ko-KR', { weekday: 'long' }),
       count
     }
   }).reverse()
 
   // 일간 통계
   const dailyStats = Array.from({ length: 24 }, (_, i) => {
-    const hour = new Date(now.getTime() - i * 60 * 60 * 1000)
-    const nextHour = new Date(now.getTime() - (i - 1) * 60 * 60 * 1000)
+    const hour = i
     const count = releases.filter(release => {
-      const date = new Date(release.published_at)
-      return date >= hour && date < nextHour
+      const date = toKST(new Date(release.published_at))
+      return date.getHours() === hour
     }).length
     return {
-      hour: hour.getHours(),
+      hour,
       count
     }
-  }).reverse()
-
-  // 평균 배포 주기 계산 (근무일 기준)
-  const sortedReleases = [...releases].sort((a, b) => 
-    new Date(a.published_at).getTime() - new Date(b.published_at).getTime()
-  )
-  
-  let totalBusinessDays = 0
-  for (let i = 1; i < sortedReleases.length; i++) {
-    const prevDate = new Date(sortedReleases[i - 1].published_at)
-    const currDate = new Date(sortedReleases[i].published_at)
-    totalBusinessDays += countBusinessDays(prevDate, currDate)
-  }
-  const avgTimeBetweenReleases = sortedReleases.length > 1 
-    ? Math.round(totalBusinessDays / (sortedReleases.length - 1))
-    : 0
+  })
 
   const stats = {
     totalReleases: releases.length,
     yearlyReleases,
-    avgTimeBetweenReleases,
+    avgTimeBetweenReleases: calculateAvgTimeBetweenReleases(releases),
     monthlyStats,
     weeklyStats,
     dailyStats
@@ -156,6 +140,23 @@ export function calculateStats(releases: Release[]) {
 
   console.log('Calculated stats:', stats)
   return stats
+}
+
+// 한국 시간대로 변환하는 유틸리티 함수
+function toKST(date: Date): Date {
+  return new Date(date.getTime() + (9 * 60 * 60 * 1000))
+}
+
+// 한국 시간 포맷팅 함수
+function formatKSTDate(date: Date): string {
+  const kstDate = toKST(date)
+  return kstDate.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 export function generateCSV(releases: Release[], stats: any): string {
@@ -171,4 +172,21 @@ export function generateCSV(releases: Release[], stats: any): string {
     headers.join(','),
     ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
   ].join('\n')
+}
+
+// 평균 배포 주기 계산 (근무일 기준)
+function calculateAvgTimeBetweenReleases(releases: Release[]): number {
+  const sortedReleases = [...releases].sort((a, b) => 
+    toKST(new Date(a.published_at)).getTime() - toKST(new Date(b.published_at)).getTime()
+  )
+  
+  let totalBusinessDays = 0
+  for (let i = 1; i < sortedReleases.length; i++) {
+    const prevDate = toKST(new Date(sortedReleases[i - 1].published_at))
+    const currDate = toKST(new Date(sortedReleases[i].published_at))
+    totalBusinessDays += countBusinessDays(prevDate, currDate)
+  }
+  return sortedReleases.length > 1 
+    ? Math.round(totalBusinessDays / (sortedReleases.length - 1))
+    : 0
 } 

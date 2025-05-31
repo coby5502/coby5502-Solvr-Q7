@@ -6,6 +6,7 @@ import { Button } from '../components/common/Button'
 import { fetchReleases, calculateStats, generateCSV } from '../services/github'
 import { Release } from '../types/release'
 import { ReleaseCharts } from '../components/statistics/ReleaseCharts'
+import { Loading } from '../components/common/Loading'
 
 const REPOSITORIES = {
   'stackflow': {
@@ -22,10 +23,10 @@ const REPOSITORIES = {
 
 type Repository = typeof REPOSITORIES[keyof typeof REPOSITORIES]
 
-function RepositoryHeader({ repository, onDownload }: { repository: Repository, onDownload: () => void }) {
+function RepositoryHeader({ repository, onDownload }: { repository: Repository; onDownload: () => void }) {
   return (
-    <div className="w-full max-w-5xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-      <div className="flex items-center space-x-4">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-center gap-4">
         <Link to="/" className="text-gray-500 hover:text-gray-700">
           <ArrowLeft className="w-6 h-6" />
         </Link>
@@ -34,22 +35,23 @@ function RepositoryHeader({ repository, onDownload }: { repository: Repository, 
           <p className="text-gray-500">{repository.description}</p>
         </div>
       </div>
-      <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+      <div className="flex gap-2">
         <Button
+          as="a"
+          href={repository.url}
+          target="_blank"
+          rel="noopener noreferrer"
           variant="outline"
-          onClick={() => window.open(repository.url, '_blank')}
-          className="flex items-center px-4 py-2 text-base w-full sm:w-auto justify-center"
         >
-          <Github className="w-5 h-5 mr-2" />
-          <span>GitHub 저장소</span>
+          <Github className="w-4 h-4" />
+          GitHub 저장소
         </Button>
         <Button
-          variant="primary"
           onClick={onDownload}
-          className="flex items-center px-4 py-2 text-base w-full sm:w-auto justify-center"
+          variant="primary"
         >
-          <Download className="w-5 h-5 mr-2" />
-          <span>CSV 다운로드</span>
+          <Download className="w-4 h-4" />
+          CSV 다운로드
         </Button>
       </div>
     </div>
@@ -122,16 +124,24 @@ export function RepositoryPage() {
     )
   }
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loading />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8 px-2 md:px-0 max-w-5xl mx-auto">
       <RepositoryHeader repository={repository} onDownload={handleDownloadCSV} />
-      {stats && <ReleaseCharts stats={stats} />}
+      {releases && <ReleaseCharts releases={releases} />}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="px-4 py-3 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">릴리즈 목록</h2>
         </div>
         <div className="p-4 overflow-x-auto">
-          <ReleaseList releases={releases} isLoading={isLoading} />
+          <ReleaseList releases={releases} isLoading={false} />
         </div>
       </div>
     </div>

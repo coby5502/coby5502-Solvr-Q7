@@ -1,44 +1,47 @@
-import { ButtonHTMLAttributes, ReactNode } from 'react'
+import React, { ElementType, ReactNode, AnchorHTMLAttributes, ButtonHTMLAttributes } from 'react'
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  children: ReactNode
-  variant?: 'primary' | 'secondary' | 'success' | 'outline'
+// 커스텀 prop 분리
+interface CustomButtonProps {
+  variant?: 'primary' | 'outline'
   isLoading?: boolean
+  as?: ElementType
+  children: ReactNode
+  className?: string
+  disabled?: boolean
 }
 
-const variantStyles = {
-  primary: 'bg-orange-500 hover:bg-orange-600 text-white focus:ring-orange-500',
-  secondary: 'bg-gray-500 hover:bg-gray-600 text-white focus:ring-gray-500',
-  success: 'bg-orange-500 hover:bg-orange-600 text-white focus:ring-orange-500',
-  outline: 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 focus:ring-orange-500'
-}
+type AnchorButtonProps = CustomButtonProps & AnchorHTMLAttributes<HTMLAnchorElement> & { as: 'a' }
+type NativeButtonProps = CustomButtonProps & ButtonHTMLAttributes<HTMLButtonElement> & { as?: 'button' | undefined }
+type ButtonProps = AnchorButtonProps | NativeButtonProps
 
-export function Button({
-  children,
-  variant = 'primary',
-  isLoading = false,
-  className = '',
-  disabled,
-  ...props
-}: ButtonProps) {
+export function Button(props: ButtonProps) {
+  const {
+    as = 'button',
+    children,
+    variant = 'primary',
+    isLoading = false,
+    className = '',
+    disabled,
+    ...rest
+  } = props as any
+  const Component = as
+  const baseStyles = 'inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2'
+  const variantStyles = {
+    primary: 'bg-orange-500 text-white hover:bg-orange-600 focus:ring-orange-500',
+    outline: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 focus:ring-orange-400'
+  }
   return (
-    <button
-      className={`
-        inline-flex items-center justify-center px-4 py-2
-        text-sm font-medium rounded-md
-        focus:outline-none focus:ring-2 focus:ring-offset-2
-        disabled:opacity-50 disabled:cursor-not-allowed
-        ${variantStyles[variant]}
-        ${className}
-      `}
-      disabled={disabled || isLoading}
-      {...props}
+    <Component
+      className={`${baseStyles} ${variantStyles[variant]} ${className} ${isLoading ? 'animate-spin' : ''}`}
+      disabled={Component === 'button' ? (disabled || isLoading) : undefined}
+      aria-disabled={Component !== 'button' ? (disabled || isLoading) : undefined}
+      {...rest}
     >
       {isLoading ? (
-        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
       ) : (
         children
       )}
-    </button>
+    </Component>
   )
 } 
