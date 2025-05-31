@@ -1,26 +1,23 @@
-import { Routes, Route } from 'react-router-dom'
-import MainLayout from './layouts/MainLayout'
-import HomePage from './routes/HomePage'
-import UsersPage from './routes/UsersPage'
-import UserDetailPage from './routes/UserDetailPage'
-import CreateUserPage from './routes/CreateUserPage'
-import EditUserPage from './routes/EditUserPage'
-import NotFoundPage from './routes/NotFoundPage'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { HomePage } from './routes/HomePage'
+import { RepositoryPage } from './routes/RepositoryPage'
+import { Header } from './components/layout/Header'
+import { Footer } from './components/layout/Footer'
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<MainLayout />}>
-        <Route index element={<HomePage />} />
-        <Route path="users">
-          <Route index element={<UsersPage />} />
-          <Route path="new" element={<CreateUserPage />} />
-          <Route path=":id" element={<UserDetailPage />} />
-          <Route path=":id/edit" element={<EditUserPage />} />
-        </Route>
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+    <Router>
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/:repoId" element={<RepositoryPage />} />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </Router>
   )
 }
 
