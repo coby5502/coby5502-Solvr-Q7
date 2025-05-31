@@ -12,6 +12,7 @@ const PAGE_SIZE = 10
 export function ReleaseList({ releases, isLoading }: ReleaseListProps) {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [selectedRelease, setSelectedRelease] = useState<Release | null>(null)
 
   const filtered = useMemo(() =>
     releases.filter(r =>
@@ -96,7 +97,11 @@ export function ReleaseList({ releases, isLoading }: ReleaseListProps) {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {paged.map((release) => (
-              <tr key={release.tag_name}>
+              <tr 
+                key={release.tag_name}
+                onClick={() => setSelectedRelease(release)}
+                className="cursor-pointer hover:bg-gray-50"
+              >
                 <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px' }} className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap overflow-hidden truncate">{release.tag_name}</td>
                 <td style={{ width: '100px', minWidth: '100px', maxWidth: '100px' }} className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap overflow-hidden truncate">{new Date(release.published_at).toLocaleDateString()}</td>
                 <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px' }} className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap overflow-hidden truncate">{release.name}</td>
@@ -105,6 +110,34 @@ export function ReleaseList({ releases, isLoading }: ReleaseListProps) {
           </tbody>
         </table>
       </div>
+      {selectedRelease && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-start p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">{selectedRelease.name}</h3>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedRelease(null)
+                }}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <div className="text-sm text-gray-500 mb-4">
+                <span className="font-medium">버전:</span> {selectedRelease.tag_name}
+                <span className="mx-2">•</span>
+                <span className="font-medium">배포일:</span> {new Date(selectedRelease.published_at).toLocaleDateString()}
+              </div>
+              <div className="prose prose-sm max-w-none">
+                <div className="whitespace-pre-wrap text-gray-700">{selectedRelease.body}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
