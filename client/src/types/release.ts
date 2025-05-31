@@ -1,8 +1,17 @@
 export interface Release {
+  id: string
   tag_name: string
   name: string
-  published_at: string
   body: string
+  published_at: string
+  html_url: string
+}
+
+export interface RepoMeta {
+  id: string
+  name: string
+  description: string
+  url: string
 }
 
 export interface ReleaseStats {

@@ -12,7 +12,7 @@ function App() {
         <main className="container mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/:repoId" element={<RepositoryPage />} />
+            <Route path="/dashboard/:repoId" element={<RepositoryPage />} />
           </Routes>
         </main>
         <Footer />

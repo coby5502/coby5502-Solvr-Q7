@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef } from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { Calendar } from 'lucide-react'
@@ -11,11 +11,6 @@ interface ReleaseChartsProps {
   releases: Release[]
 }
 
-// 한국 시간대로 변환하는 유틸리티 함수
-function toKST(date: Date): Date {
-  return new Date(date.getTime() + (9 * 60 * 60 * 1000))
-}
-
 function getYTicks(max: number, height: number) {
   return [max, Math.round(max / 2), 0].map((v) => ({
     value: v,
@@ -23,229 +18,179 @@ function getYTicks(max: number, height: number) {
   }))
 }
 
-function getYearMonthDay(date: Date) {
-  const kstDate = toKST(date)
-  return {
-    year: kstDate.getFullYear(),
-    month: kstDate.getMonth() + 1,
-    day: kstDate.getDate()
+// 월별 주차: 해당 월에 하루라도 포함된 월~금 주는 모두 포함
+function getWeeksInMonthStrict(year: number, month: number) {
+  const firstDay = new Date(Date.UTC(year, month - 1, 1));
+  const lastDay = new Date(Date.UTC(year, month, 0));
+  let currentMonday = new Date(firstDay);
+  currentMonday.setUTCDate(currentMonday.getUTCDate() - ((currentMonday.getUTCDay() + 6) % 7));
+  const weeks: { start: Date; end: Date }[] = [];
+  while (true) {
+    const weekStart = new Date(currentMonday);
+    const weekEnd = new Date(currentMonday);
+    weekEnd.setUTCDate(weekStart.getUTCDate() + 4); // 월~금
+    let monthDays = 0;
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(weekStart);
+      d.setUTCDate(weekStart.getUTCDate() + i);
+      if (d.getUTCMonth() + 1 === month) monthDays++;
+    }
+    if (monthDays > 0) {
+      weeks.push({ start: weekStart, end: weekEnd });
+    }
+    if (weekStart > lastDay && weekEnd > lastDay) break;
+    currentMonday.setUTCDate(currentMonday.getUTCDate() + 7);
   }
+  return weeks;
 }
 
-function getWeeksInMonth(year: number, month: number) {
-  // month: 1~12
-  const firstDay = new Date(year, month - 1, 1)
-  const lastDay = new Date(year, month, 0)
-  let weeks: { start: number; end: number }[] = []
-  let current = new Date(firstDay)
-
-  // 첫 월요일 찾기
-  while (current.getDay() !== 1 && current <= lastDay) {
-    current.setDate(current.getDate() + 1)
-  }
-
-  while (current <= lastDay) {
-    const start = current.getDate()
-    let end = start
-    for (let i = 1; i < 5 && current < lastDay; i++) {
-      current.setDate(current.getDate() + 1)
-      end = current.getDate()
-    }
-    // 주의 첫날이 해당 월에 속할 때만 추가, 그리고 3일 이상만 주차로 인정
-    const weekStart = new Date(year, month - 1, start)
-    const weekEnd = new Date(year, month - 1, end)
-    // 주의 끝이 월을 넘어가면, 월의 마지막 날로 제한
-    if (weekEnd > lastDay) weekEnd.setDate(lastDay.getDate())
-    // 실제로 해당 월에 포함된 일수 계산
-    const daysInMonth = Array.from({ length: (weekEnd.getDate() - weekStart.getDate() + 1) }, (_, i) => weekStart.getDate() + i)
-      .filter(d => d >= 1 && d <= lastDay.getDate())
-    if (weekStart.getMonth() === month - 1 && daysInMonth.length >= 3) {
-      weeks.push({ start: weekStart.getDate(), end: weekEnd.getDate() })
-    }
-    current.setDate(end + 1)
-    // 다음 월요일로 이동
-    while (current.getDay() !== 1 && current <= lastDay) {
-      current.setDate(current.getDate() + 1)
-    }
-  }
-  return weeks
+function getTodayUTCMidnight(): Date {
+  const now = new Date();
+  now.setUTCHours(0, 0, 0, 0);
+  return now;
 }
 
 export function ReleaseCharts({ releases }: ReleaseChartsProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
 
-  // 연간 state - 한국 시간 기준
-  const years = Array.from(new Set(releases.map(r => toKST(new Date(r.published_at)).getFullYear()))).sort((a, b) => b - a)
-  const [selectedYear, setSelectedYear] = useState(years[0] || toKST(new Date()).getFullYear())
+  const years = Array.from(new Set(releases.map(r => new Date(r.published_at).getFullYear()))).sort((a, b) => b - a)
+  const today = getTodayUTCMidnight();
 
-  // 주간 state - 한국 시간 기준
-  const months = Array.from({ length: 12 }, (_, i) => i + 1)
-  const [selectedMonth, setSelectedMonth] = useState(toKST(new Date()).getMonth() + 1)
-  const weeksInMonth = getWeeksInMonth(selectedYear, selectedMonth)
-  const [selectedWeek, setSelectedWeek] = useState(1)
+  const [selectedYearAnnual, setSelectedYearAnnual] = useState(years[0] || today.getFullYear())
+  const [selectedYearWeekly, setSelectedYearWeekly] = useState(today.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1)
 
-  // 일간 state - 한국 시간 기준
-  const [selectedDate, setSelectedDate] = useState<Date>(toKST(new Date()))
-
-  // 일간: 캘린더 팝업 open 상태
-  const [calendarOpen, setCalendarOpen] = useState(false)
-
-  // 오늘이 포함된 주차 index (주간 미래 주차 비활성화용) - 한국 시간 기준
-  const today = toKST(new Date())
-  const isCurrentMonth = selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1
-  const currentWeeks = getWeeksInMonth(today.getFullYear(), today.getMonth() + 1)
-  const todayWeekIdx = isCurrentMonth ? currentWeeks.findIndex(w => today.getDate() >= w.start && today.getDate() <= w.end) : -1
-  const isLastWeek = isCurrentMonth ? selectedWeek >= todayWeekIdx + 1 : selectedWeek === weeksInMonth.length
-
-  useEffect(() => {
-    const updateWidth = () => {
-      if (containerRef.current) {
-        const parent = containerRef.current.parentElement
-        if (parent) {
-          const parentStyle = window.getComputedStyle(parent)
-          const parentPadding = parseFloat(parentStyle.paddingLeft) + parseFloat(parentStyle.paddingRight)
-          setContainerWidth(parent.clientWidth - parentPadding)
-        }
-      }
-    }
-    updateWidth()
-    window.addEventListener('resize', updateWidth)
-    return () => window.removeEventListener('resize', updateWidth)
-  }, [])
-
-  // 연간 데이터 집계 - 한국 시간 기준
-  const monthlyData = Array.from({ length: 12 }, (_, i) => {
-    const month = i + 1
-    if (selectedYear === today.getFullYear() && month > today.getMonth() + 1) return null
-    return releases.filter(r => {
-      const d = toKST(new Date(r.published_at))
-      return d.getFullYear() === selectedYear && d.getMonth() + 1 === month
-    }).length
-  }).filter(v => v !== null) as number[]
-  const maxMonthly = Math.max(...monthlyData, 1)
-
-  // 주간 데이터 집계 - 한국 시간 기준
-  const weeks = getWeeksInMonth(selectedYear, selectedMonth)
-  const weekRange = weeks[selectedWeek - 1] || { start: 1, end: 1 }
-  const weekDates = Array.from({ length: 5 }, (_, i) => {
-    // 월~금 날짜
-    const date = new Date(selectedYear, selectedMonth - 1, weekRange.start + i)
-    if (date.getMonth() + 1 !== selectedMonth || date.getDate() > weekRange.end) return null
-    return date
-  }).filter(Boolean) as Date[]
-  const weekLabels = ['월', '화', '수', '목', '금'].slice(0, weekDates.length)
-  const weeklyData = weekDates.map(date => {
-    const kstDate = toKST(date)
-    return releases.filter(r => {
-      const releaseDate = toKST(new Date(r.published_at))
-      return releaseDate.getFullYear() === kstDate.getFullYear() &&
-             releaseDate.getMonth() === kstDate.getMonth() &&
-             releaseDate.getDate() === kstDate.getDate()
-    }).length
+  const weeksInMonth = getWeeksInMonthStrict(selectedYearWeekly, selectedMonth)
+  const [selectedWeek, setSelectedWeek] = useState(() => {
+    const idx = weeksInMonth.findIndex(w => today >= w.start && today <= w.end);
+    return idx !== -1 ? idx + 1 : weeksInMonth.length;
   })
-  const maxWeekly = Math.max(...weeklyData, 1)
-  const weeklyTotal = weeklyData.reduce((a, b) => a + b, 0)
 
-  // 일간 데이터 집계 - 한국 시간 기준
-  const dayHours = Array.from({ length: 24 }, (_, i) => i)
-  const dayDateStr = toKST(selectedDate).toISOString().slice(0, 10)
+  const [selectedDate, setSelectedDate] = useState<Date>(today)
+
+  function setMonthAndMaybeResetWeek(year: number, month: number) {
+    const weeks = getWeeksInMonthStrict(year, month);
+    const idx = weeks.findIndex(w => today >= w.start && today <= w.end);
+    setSelectedYearWeekly(year);
+    setSelectedMonth(month);
+    setSelectedWeek(idx !== -1 ? idx + 1 : weeks.length);
+  }
+
+  // 월간 데이터 집계 - UTC 기준
+  const monthlyData = Array.from({ length: 12 }, (_, i) => {
+    const month = i + 1;
+    if (selectedYearAnnual === today.getFullYear() && month > today.getMonth() + 1) return null;
+    return releases.filter(r => {
+      const d = new Date(r.published_at);
+      return d.getFullYear() === selectedYearAnnual && d.getMonth() + 1 === month;
+    }).length;
+  }).filter(v => v !== null) as number[];
+  const maxMonthly = Math.max(...monthlyData, 1);
+  const monthLabels = monthlyData.map((_, i) => `${i + 1}월`);
+
+  // 주간 데이터 집계 - UTC 기준
+  const weeks = getWeeksInMonthStrict(selectedYearWeekly, selectedMonth);
+  const weekRange = weeks[selectedWeek - 1] || { start: today, end: today };
+  const weekDates = Array.from({ length: 5 }, (_, i) => {
+    const date = new Date(weekRange.start);
+    date.setUTCDate(weekRange.start.getUTCDate() + i);
+    return date;
+  });
+
+  const weekLabels = ['월', '화', '수', '목', '금'];
+  const weeklyData = weekDates.map(date => {
+    return releases.filter(r => {
+      const releaseDate = new Date(r.published_at);
+      return (
+        releaseDate.getUTCFullYear() === date.getUTCFullYear() &&
+        releaseDate.getUTCMonth() === date.getUTCMonth() &&
+        releaseDate.getUTCDate() === date.getUTCDate()
+      );
+    }).length;
+  });
+  const maxWeekly = Math.max(...weeklyData, 1);
+  const weeklyTotal = weeklyData.reduce((a, b) => a + b, 0);
+
+  // 일간 데이터 집계 - UTC 기준
+  const dayHours = Array.from({ length: 24 }, (_, i) => i);
   const dailyData = dayHours.map(hour => {
     return releases.filter(r => {
-      const d = toKST(new Date(r.published_at))
-      return d.toISOString().slice(0, 10) === dayDateStr && d.getHours() === hour
-    }).length
-  })
-  const maxDaily = Math.max(...dailyData, 1)
-  const dailyTotal = dailyData.reduce((a, b) => a + b, 0)
+      const d = new Date(r.published_at);
+      return (
+        d.getFullYear() === selectedDate.getFullYear() &&
+        d.getMonth() === selectedDate.getMonth() &&
+        d.getDate() === selectedDate.getDate() &&
+        d.getHours() === hour
+      );
+    }).length;
+  });
+  const maxDaily = Math.max(...dailyData, 1);
+  const dailyTotal = dailyData.reduce((a, b) => a + b, 0);
 
-  // SVG viewBox 크기
-  const height = 120
-  const leftPad = 40
-  const rightPad = 16
-  const bottomPad = 32
+  const height = 140;
+  const leftPad = 48;
+  const rightPad = 24;
+  const topPad = 32;
+  const bottomPad = 48;
 
-  // 툴크 상태
   const [hover, setHover] = useState<{ type: string; idx: number } | null>(null)
 
-  // 연간 화살표 비활성화
-  const yearIdx = years.indexOf(selectedYear)
-  const isFirstYear = yearIdx === years.length - 1
-  const isLastYear = yearIdx === 0
+  const yearIdxAnnual = years.indexOf(selectedYearAnnual)
+  const isFirstYearAnnual = yearIdxAnnual === years.length - 1
+  const isLastYearAnnual = yearIdxAnnual === 0
+  const yearIdxWeekly = years.indexOf(selectedYearWeekly)
 
-  // 주간 화살표 비활성화
-  const isFirstWeek = selectedWeek === 1
-
-  // 주간: 오늘이 포함된 주차가 기본 - 한국 시간 기준
-  useEffect(() => {
-    const today = toKST(new Date())
-    if (selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1) {
-      const weeks = getWeeksInMonth(selectedYear, selectedMonth)
-      const day = today.getDate()
-      const weekIdx = weeks.findIndex(w => day >= w.start && day <= w.end)
-      if (weekIdx !== -1) setSelectedWeek(weekIdx + 1)
-    }
-  }, [selectedYear, selectedMonth])
-
-  // 주간: 화살표 이동 로직 개선 - 한국 시간 기준
+  // handlePrevWeek/handleNextWeek에서 setSelectedMonth/setSelectedYearWeekly를 직접 쓰지 않고 위 함수 사용
   const handlePrevWeek = () => {
     if (selectedWeek > 1) {
       setSelectedWeek(selectedWeek - 1)
     } else if (selectedMonth > 1) {
       const prevMonth = selectedMonth - 1
-      const prevWeeks = getWeeksInMonth(selectedYear, prevMonth)
-      setSelectedMonth(prevMonth)
-      setSelectedWeek(prevWeeks.length)
-    } else if (selectedYear > Math.min(...years)) {
-      const prevYear = selectedYear - 1
-      setSelectedYear(prevYear)
-      setSelectedMonth(12)
-      const prevWeeks = getWeeksInMonth(prevYear, 12)
-      setSelectedWeek(prevWeeks.length)
+      const prevWeeks = getWeeksInMonthStrict(selectedYearWeekly, prevMonth)
+      setMonthAndMaybeResetWeek(selectedYearWeekly, prevMonth)
+      setSelectedWeek(prevWeeks.length) // 마지막 주차로 이동
+    } else if (selectedYearWeekly > Math.min(...years)) {
+      const prevYear = selectedYearWeekly - 1
+      const prevWeeks = getWeeksInMonthStrict(prevYear, 12)
+      setMonthAndMaybeResetWeek(prevYear, 12)
+      setSelectedWeek(prevWeeks.length) // 마지막 주차로 이동
     }
   }
 
   const handleNextWeek = () => {
-    // 미래 주차만 비활성화 - 한국 시간 기준
-    const isFuture = (() => {
-      const nextWeek = selectedWeek < weeks.length ? selectedWeek + 1 : 1
-      const nextMonth = selectedWeek < weeks.length ? selectedMonth : (selectedMonth < 12 ? selectedMonth + 1 : 1)
-      const nextYear = selectedWeek < weeks.length ? selectedYear : (selectedMonth < 12 ? selectedYear : selectedYear + 1)
-      const nextWeeks = getWeeksInMonth(nextYear, nextMonth)
-      const nextWeekRange = nextWeeks[nextWeek - 1] || { start: 1, end: 1 }
-      const nextWeekDate = toKST(new Date(nextYear, nextMonth - 1, nextWeekRange.end))
-      return nextWeekDate > today
-    })()
-    if (isFuture) return
-    if (selectedWeek < weeks.length) {
+    if (selectedWeek < weeksInMonth.length) {
       setSelectedWeek(selectedWeek + 1)
     } else if (selectedMonth < 12) {
-      const nextMonth = selectedMonth + 1
-      setSelectedMonth(nextMonth)
+      const nextWeeks = getWeeksInMonthStrict(selectedYearWeekly, selectedMonth + 1)
+      setMonthAndMaybeResetWeek(selectedYearWeekly, selectedMonth + 1)
       setSelectedWeek(1)
-    } else if (selectedYear < Math.max(...years)) {
-      setSelectedYear(selectedYear + 1)
-      setSelectedMonth(1)
+    } else if (selectedYearWeekly < Math.max(...years)) {
+      const nextWeeks = getWeeksInMonthStrict(selectedYearWeekly + 1, 1)
+      setMonthAndMaybeResetWeek(selectedYearWeekly + 1, 1)
       setSelectedWeek(1)
     }
   }
 
-  // 미래 주차만 비활성화 - 한국 시간 기준
   const isNextWeekFuture = (() => {
-    const nextWeek = selectedWeek < weeks.length ? selectedWeek + 1 : 1
-    const nextMonth = selectedWeek < weeks.length ? selectedMonth : (selectedMonth < 12 ? selectedMonth + 1 : 1)
-    const nextYear = selectedWeek < weeks.length ? selectedYear : (selectedMonth < 12 ? selectedYear : selectedYear + 1)
-    const nextWeeks = getWeeksInMonth(nextYear, nextMonth)
-    const nextWeekRange = nextWeeks[nextWeek - 1] || { start: 1, end: 1 }
-    const nextWeekDate = toKST(new Date(nextYear, nextMonth - 1, nextWeekRange.end))
-    return nextWeekDate > today
+    const nextWeek = selectedWeek < weeksInMonth.length ? selectedWeek + 1 : 1
+    const nextMonth = selectedWeek < weeksInMonth.length ? selectedMonth : (selectedMonth < 12 ? selectedMonth + 1 : 1)
+    const nextYear = selectedWeek < weeksInMonth.length ? selectedYearWeekly : (selectedMonth < 12 ? selectedYearWeekly : selectedYearWeekly + 1)
+    
+    // 미래 월 체크
+    if (nextYear > today.getFullYear() || 
+        (nextYear === today.getFullYear() && nextMonth > today.getMonth() + 1)) {
+      return true;
+    }
+    
+    const nextWeeks = getWeeksInMonthStrict(nextYear, nextMonth)
+    const nextWeekRange = nextWeeks[nextWeek - 1] || { start: today, end: today }
+    return nextWeekRange.end.getTime() > today.getTime()
   })()
 
-  // 버튼 스타일 통일
   const arrowBtn = (disabled: boolean) =>
     `rounded-full p-1.5 text-lg transition-colors ${disabled ? 'text-gray-300 bg-gray-100 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-200'}`
 
-  // 꺾은선그래프 곡선 path 계산 (Cubic Bezier)
   function getLinePath(points: { x: number, y: number }[]) {
     if (points.length < 2) return ''
     let d = `M${points[0].x},${points[0].y}`
@@ -258,8 +203,8 @@ export function ReleaseCharts({ releases }: ReleaseChartsProps) {
     return d
   }
 
-  function renderBarGraph({ data, max, labels, type }: { data: number[]; max: number; labels: (string | number)[]; type: string }) {
-    const availableWidth = containerWidth - leftPad - rightPad
+  function renderBarGraph({ data, max, labels, type, topPad = 16, bottomPad = 32 }: { data: number[]; max: number; labels: (string | number)[]; type: string; topPad?: number; bottomPad?: number }) {
+    const availableWidth = containerWidth || 600; // fallback
     const minBarWidth = 24
     const gap = 8
     const totalGaps = data.length - 1
@@ -269,7 +214,7 @@ export function ReleaseCharts({ releases }: ReleaseChartsProps) {
 
     const points = data.map((v, i) => {
       const x = leftPad + i * (barWidth + gap) + barWidth / 2
-      const y = 16 + height - (v / max) * height
+      const y = topPad + height - (v / max) * height
       return { x, y }
     })
     const linePath = getLinePath(points)
@@ -277,22 +222,22 @@ export function ReleaseCharts({ releases }: ReleaseChartsProps) {
     return (
       <div className="w-full" style={{ overflow: 'visible' }}>
         <svg
-          width={svgWidth}
-          height={height + bottomPad}
-          viewBox={`0 0 ${svgWidth} ${height + bottomPad}`}
+          width="100%"
+          height={height + topPad + bottomPad}
+          viewBox={`0 0 ${svgWidth} ${height + topPad + bottomPad}`}
           style={{ overflow: 'visible', display: 'block', maxWidth: '100%' }}
         >
           {/* y축 눈금 */}
           {getYTicks(max, height).map((tick, i) => (
             <g key={i}>
-              <text x={leftPad - 8} y={tick.y + 16} fontSize={12} fill="#aaa" textAnchor="end">{tick.value}</text>
-              <line x1={leftPad} x2={svgWidth - rightPad} y1={tick.y + 16} y2={tick.y + 16} stroke="#eee" />
+              <text x={leftPad - 8} y={tick.y + topPad} fontSize={12} fill="#aaa" textAnchor="end">{tick.value}</text>
+              <line x1={leftPad} x2={svgWidth - rightPad} y1={tick.y + topPad} y2={tick.y + topPad} stroke="#eee" />
             </g>
           ))}
           {/* 막대그래프 */}
           {data.map((v, i) => {
             const x = leftPad + i * (barWidth + gap)
-            const y = 16 + height - (v / max) * height
+            const y = topPad + height - (v / max) * height
             return (
               <g key={i}>
                 <rect
@@ -340,7 +285,7 @@ export function ReleaseCharts({ releases }: ReleaseChartsProps) {
               <text
                 key={i}
                 x={x}
-                y={height + 28}
+                y={height + topPad + 16}
                 fontSize={12}
                 fill="#aaa"
                 textAnchor="middle"
@@ -366,48 +311,53 @@ export function ReleaseCharts({ releases }: ReleaseChartsProps) {
     }
     const width = Math.max(44, label.length * 8 + 16)
     return (
-      <g pointerEvents="none" className="z-10">
+      <g pointerEvents="none" className="z-20">
         <rect x={x - width / 2} y={y - 38} width={width} height={24} rx={6} fill="#fff" stroke="#fb923c" />
         <text x={x} y={y - 22} textAnchor="middle" fontSize={14} fill="#fb923c" fontWeight={700}>{label}</text>
       </g>
     )
   }
 
-  // UI
   return (
-    <div className="space-y-6 mt-8" ref={containerRef}>
+    <div className="space-y-10 mt-12" ref={containerRef}>
       {/* 연간 */}
-      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm flex flex-col overflow-visible">
-        <div className="flex items-center justify-between mb-2">
+      <div className="bg-white p-6 sm:p-10 rounded-lg shadow-sm flex flex-col overflow-visible">
+        <div className="mb-4">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">연간 릴리즈</h2>
+        </div>
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setSelectedYear(y => years[Math.max(0, yearIdx + 1)] || y)}
-              disabled={isFirstYear}
-              className={arrowBtn(isFirstYear)}
+              onClick={() => setSelectedYearAnnual(y => years[Math.max(0, yearIdxAnnual + 1)] || y)}
+              disabled={isFirstYearAnnual}
+              className={arrowBtn(isFirstYearAnnual)}
               aria-label="이전 연도"
             >◀</button>
-            <span className="text-base font-bold text-gray-700">{selectedYear}년</span>
+            <span className="text-base font-bold text-gray-700">{selectedYearAnnual}년</span>
             <button
-              onClick={() => setSelectedYear(y => years[Math.max(0, yearIdx - 1)] || y)}
-              disabled={isLastYear}
-              className={arrowBtn(isLastYear)}
+              onClick={() => setSelectedYearAnnual(y => years[Math.max(0, yearIdxAnnual - 1)] || y)}
+              disabled={isLastYearAnnual}
+              className={arrowBtn(isLastYearAnnual)}
               aria-label="다음 연도"
             >▶</button>
           </div>
           <span className="text-xl sm:text-2xl font-bold text-orange-500">{monthlyData.reduce((a, b) => a + b, 0)}</span>
         </div>
-        {renderBarGraph({ data: monthlyData, max: maxMonthly, labels: monthlyData.map((_, i) => `${i + 1}월`), type: 'monthly' })}
+        {renderBarGraph({ data: monthlyData, max: maxMonthly, labels: monthLabels, type: 'monthly', topPad, bottomPad })}
       </div>
       {/* 주간 */}
-      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm flex flex-col overflow-visible">
-        <div className="flex items-center justify-between mb-2">
+      <div className="bg-white p-6 sm:p-10 rounded-lg shadow-sm flex flex-col overflow-visible">
+        <div className="mb-4">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">주간 릴리즈</h2>
+        </div>
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrevWeek}
               className={arrowBtn(false)}
               aria-label="이전 주차"
             >◀</button>
-            <span className="text-base font-bold text-gray-700">{selectedYear}년 {selectedMonth}월 {selectedWeek}주차</span>
+            <span className="text-base font-bold text-gray-700">{selectedYearWeekly}년 {selectedMonth}월 {selectedWeek}주차</span>
             <button
               onClick={handleNextWeek}
               className={arrowBtn(isNextWeekFuture)}
@@ -417,22 +367,28 @@ export function ReleaseCharts({ releases }: ReleaseChartsProps) {
           </div>
           <span className="text-xl sm:text-2xl font-bold text-orange-500">{weeklyTotal}</span>
         </div>
-        {renderBarGraph({ data: weeklyData, max: maxWeekly, labels: weekLabels, type: 'weekly' })}
+        {renderBarGraph({ data: weeklyData, max: maxWeekly, labels: weekLabels, type: 'weekly', topPad, bottomPad })}
       </div>
       {/* 일간 */}
-      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm flex flex-col overflow-visible">
-        <div className="flex items-center justify-between mb-2">
+      <div className="bg-white p-6 sm:p-10 rounded-lg shadow-sm flex flex-col overflow-visible">
+        <div className="mb-4">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">일간 릴리즈</h2>
+        </div>
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 relative">
             <DatePicker
               selected={selectedDate}
-              onChange={date => date && setSelectedDate(toKST(date))}
+              onChange={(date: Date | null) => {
+                if (!date) return;
+                setSelectedDate(date);
+              }}
               dateFormat="yyyy년 MM월 dd일"
               maxDate={today}
               popperPlacement="bottom-start"
               popperClassName="z-50"
               customInput={
                 <button
-                  className="flex items-center gap-2 border border-orange-200 rounded-lg px-4 py-2 text-base font-bold text-gray-800 bg-white hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-300 shadow-sm transition"
+                  className="flex items-center gap-2 border border-orange-200 rounded-lg px-4 py-2 text-base font-bold text-gray-800 bg-white hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-300 shadow-sm transition relative z-10"
                   type="button"
                 >
                   <Calendar className="w-5 h-5 text-orange-400" />
@@ -451,14 +407,13 @@ export function ReleaseCharts({ releases }: ReleaseChartsProps) {
                 [&_.react-datepicker__navigation]:z-10"
               dayClassName={(date: any) => {
                 if (!(date instanceof Date) || isNaN(date.getTime())) return '';
-                const kstDate = toKST(date)
                 let base = "rounded-full transition";
-                if (kstDate.toDateString() === today.toDateString()) {
+                if (date.toDateString() === today.toDateString()) {
                   base += " bg-orange-100 text-orange-600 font-bold";
                 } else {
                   base += " hover:bg-orange-50";
                 }
-                if (kstDate.toDateString() === selectedDate.toDateString()) {
+                if (date.toDateString() === selectedDate.toDateString()) {
                   base += " ring-2 ring-orange-400";
                 }
                 return base;
@@ -467,7 +422,7 @@ export function ReleaseCharts({ releases }: ReleaseChartsProps) {
           </div>
           <span className="text-xl sm:text-2xl font-bold text-orange-500">{dailyTotal}</span>
         </div>
-        {renderBarGraph({ data: dailyData, max: maxDaily, labels: dayHours, type: 'daily' })}
+        {renderBarGraph({ data: dailyData, max: maxDaily, labels: dayHours, type: 'daily', topPad, bottomPad })}
       </div>
     </div>
   )

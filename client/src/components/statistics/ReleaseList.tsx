@@ -8,31 +8,25 @@ interface ReleaseListProps {
   isLoading: boolean
 }
 
-// 한국 시간대로 변환하는 유틸리티 함수
-function toKST(date: Date): Date {
-  return new Date(date.getTime() + (9 * 60 * 60 * 1000))
+// 목록: 날짜만 (한국어 포맷)
+function getDateString(date: Date): string {
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
 }
 
-// 한국 시간 포맷팅 함수
-function formatKSTDate(date: Date): string {
-  const kstDate = toKST(date)
-  return kstDate.toLocaleDateString('ko-KR', {
+// 팝업: 날짜+시간 (한국어 포맷)
+function getDateTimeString(date: Date): string {
+  return date.toLocaleString('ko-KR', {
     year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-// 한국 시간 날짜만 포맷팅 함수
-function formatKSTDateOnly(date: Date): string {
-  const kstDate = toKST(date)
-  return kstDate.toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
+    minute: '2-digit',
+    hour12: false
+  });
 }
 
 const PAGE_SIZE = 10
@@ -131,7 +125,7 @@ export function ReleaseList({ releases, isLoading }: ReleaseListProps) {
                 className="cursor-pointer hover:bg-gray-50"
               >
                 <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px' }} className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap overflow-hidden truncate">{release.tag_name}</td>
-                <td style={{ width: '100px', minWidth: '100px', maxWidth: '100px' }} className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap overflow-hidden truncate">{formatKSTDateOnly(new Date(release.published_at))}</td>
+                <td style={{ width: '100px', minWidth: '100px', maxWidth: '100px' }} className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap overflow-hidden truncate">{getDateString(new Date(release.published_at))}</td>
                 <td style={{ width: '200px', minWidth: '200px', maxWidth: '200px' }} className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap overflow-hidden truncate">{release.name}</td>
               </tr>
             ))}
@@ -163,7 +157,7 @@ export function ReleaseList({ releases, isLoading }: ReleaseListProps) {
               <div className="text-sm text-gray-500 mb-4">
                 <span className="font-medium">버전:</span> {selectedRelease.tag_name}
                 <span className="mx-2">•</span>
-                <span className="font-medium">배포일:</span> {formatKSTDate(new Date(selectedRelease.published_at))}
+                <span className="font-medium">배포일:</span> {getDateTimeString(new Date(selectedRelease.published_at))}
               </div>
               <div className="prose prose-sm max-w-none">
                 <ReactMarkdown className="whitespace-pre-wrap text-gray-700">{selectedRelease.body || ''}</ReactMarkdown>

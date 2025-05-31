@@ -1,11 +1,8 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import env from './config/env'
-import { initializeDatabase, getDb } from './db'
-import runMigration from './db/migrate'
-import { createUserService } from './services/userService'
 import { createRoutes } from './routes'
-import { AppContext } from './types/context'
+import { loadAllReleasesFromGithub } from './services/releaseService'
 
 // Fastify 인스턴스 생성
 const fastify = Fastify({
@@ -31,18 +28,11 @@ async function start() {
       credentials: true
     })
 
-    // 데이터베이스 마이그레이션 및 초기화
-    await runMigration()
-    await initializeDatabase()
-
-    // 서비스 및 컨텍스트 초기화
-    const db = await getDb()
-    const context: AppContext = {
-      userService: createUserService({ db })
-    }
+    // 릴리즈 데이터 GitHub에서 메모리로 적재
+    await loadAllReleasesFromGithub()
 
     // 라우트 등록
-    await fastify.register(createRoutes(context))
+    await fastify.register(createRoutes())
 
     // 서버 시작
     await fastify.listen({ port: env.PORT, host: env.HOST })
