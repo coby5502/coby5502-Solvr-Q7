@@ -48,6 +48,21 @@ export async function fetchReleases(url: string): Promise<Release[]> {
   return releases
 }
 
+// 두 날짜 사이의 근무일(월~금) 수 계산
+function countBusinessDays(start: Date, end: Date): number {
+  let count = 0
+  let current = new Date(start)
+  current.setHours(0, 0, 0, 0)
+  end = new Date(end)
+  end.setHours(0, 0, 0, 0)
+  while (current < end) {
+    const day = current.getDay()
+    if (day !== 0 && day !== 6) count++ // 0: 일, 6: 토
+    current.setDate(current.getDate() + 1)
+  }
+  return count
+}
+
 export function calculateStats(releases: Release[]) {
   console.log('Calculating stats for releases:', releases)
 
@@ -115,20 +130,19 @@ export function calculateStats(releases: Release[]) {
     }
   }).reverse()
 
-  // 평균 배포 주기 계산
+  // 평균 배포 주기 계산 (근무일 기준)
   const sortedReleases = [...releases].sort((a, b) => 
     new Date(a.published_at).getTime() - new Date(b.published_at).getTime()
   )
   
-  let totalDays = 0
+  let totalBusinessDays = 0
   for (let i = 1; i < sortedReleases.length; i++) {
     const prevDate = new Date(sortedReleases[i - 1].published_at)
     const currDate = new Date(sortedReleases[i].published_at)
-    totalDays += (currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24)
+    totalBusinessDays += countBusinessDays(prevDate, currDate)
   }
-  
   const avgTimeBetweenReleases = sortedReleases.length > 1 
-    ? Math.round(totalDays / (sortedReleases.length - 1))
+    ? Math.round(totalBusinessDays / (sortedReleases.length - 1))
     : 0
 
   const stats = {

@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Github, Download } from 'lucide-react'
 import { ReleaseList } from '../components/statistics/ReleaseList'
-import { ReleaseStats } from '../components/statistics/ReleaseStats'
 import { Button } from '../components/common/Button'
 import { fetchReleases, calculateStats, generateCSV } from '../services/github'
 import { Release } from '../types/release'
+import { ReleaseCharts } from '../components/statistics/ReleaseCharts'
 
 const REPOSITORIES = {
   'stackflow': {
@@ -125,7 +125,7 @@ export function RepositoryPage() {
   return (
     <div className="space-y-8 px-2 md:px-0 max-w-5xl mx-auto">
       <RepositoryHeader repository={repository} onDownload={handleDownloadCSV} />
-      {stats && <ReleaseStats stats={stats} />}
+      {stats && <ReleaseCharts stats={stats} />}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="px-4 py-3 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">릴리즈 목록</h2>

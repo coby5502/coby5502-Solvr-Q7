@@ -55,15 +55,6 @@ export function HomePage() {
           <h2 className="text-xl font-bold text-gray-900 mb-1">{repo.name}</h2>
           <p className="text-gray-600 mb-4 text-base">{repo.description}</p>
           <div className="flex justify-end items-center gap-2 mt-2">
-            <Button
-              variant="primary"
-              className="flex items-center px-3 py-2 text-sm"
-              onClick={e => { e.stopPropagation(); handleDownloadCSV(repo) }}
-              disabled={downloading === repo.path}
-            >
-              <Download className="w-5 h-5 mr-2" />
-              {downloading === repo.path ? '다운로드 중...' : 'CSV 다운로드'}
-            </Button>
             <a
               href={repo.url}
               target="_blank"
@@ -74,6 +65,15 @@ export function HomePage() {
               <Github className="w-5 h-5 mr-2" />
               GitHub 저장소
             </a>
+            <Button
+              variant="primary"
+              className="flex items-center px-3 py-2 text-sm"
+              onClick={e => { e.stopPropagation(); handleDownloadCSV(repo) }}
+              disabled={downloading === repo.path}
+            >
+              <Download className="w-5 h-5 mr-2" />
+              {downloading === repo.path ? '다운로드 중...' : 'CSV 다운로드'}
+            </Button>
           </div>
         </div>
       ))}
