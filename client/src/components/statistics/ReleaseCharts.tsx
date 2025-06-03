@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import { useState, useRef } from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { Calendar } from 'lucide-react'
@@ -52,7 +52,7 @@ function getTodayUTCMidnight(): Date {
 
 export function ReleaseCharts({ releases }: ReleaseChartsProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [containerWidth, setContainerWidth] = useState(0)
+  const [containerWidth] = useState(0)
 
   const years = Array.from(new Set(releases.map(r => new Date(r.published_at).getFullYear()))).sort((a, b) => b - a)
   const today = getTodayUTCMidnight();
@@ -139,7 +139,6 @@ export function ReleaseCharts({ releases }: ReleaseChartsProps) {
   const yearIdxAnnual = years.indexOf(selectedYearAnnual)
   const isFirstYearAnnual = yearIdxAnnual === years.length - 1
   const isLastYearAnnual = yearIdxAnnual === 0
-  const yearIdxWeekly = years.indexOf(selectedYearWeekly)
 
   // handlePrevWeek/handleNextWeek에서 setSelectedMonth/setSelectedYearWeekly를 직접 쓰지 않고 위 함수 사용
   const handlePrevWeek = () => {
@@ -162,11 +161,9 @@ export function ReleaseCharts({ releases }: ReleaseChartsProps) {
     if (selectedWeek < weeksInMonth.length) {
       setSelectedWeek(selectedWeek + 1)
     } else if (selectedMonth < 12) {
-      const nextWeeks = getWeeksInMonthStrict(selectedYearWeekly, selectedMonth + 1)
       setMonthAndMaybeResetWeek(selectedYearWeekly, selectedMonth + 1)
       setSelectedWeek(1)
     } else if (selectedYearWeekly < Math.max(...years)) {
-      const nextWeeks = getWeeksInMonthStrict(selectedYearWeekly + 1, 1)
       setMonthAndMaybeResetWeek(selectedYearWeekly + 1, 1)
       setSelectedWeek(1)
     }

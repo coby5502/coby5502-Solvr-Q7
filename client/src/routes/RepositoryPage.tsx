@@ -13,7 +13,6 @@ export function RepositoryPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [releases, setReleases] = useState<Release[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [stats, setStats] = useState<any>(null)
   const [repoInfo, setRepoInfo] = useState<RepoMeta | null>(null)
 
   useEffect(() => {
@@ -21,12 +20,10 @@ export function RepositoryPage() {
     setIsLoading(true)
     Promise.all([
       releaseService.getReleases(repoId),
-      releaseService.getStatistics(repoId),
       releaseService.getRepos()
     ])
-      .then(([rel, stat, repos]) => {
+      .then(([rel, repos]) => {
         setReleases(rel)
-        setStats(stat)
         const currentRepo = repos.find(r => r.id === repoId)
         setRepoInfo(currentRepo || null)
         setError(null)

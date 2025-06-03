@@ -69,7 +69,7 @@ export function HomePage() {
             <Button
               variant="primary"
               className="flex items-center"
-              onClick={e => { e.stopPropagation(); handleDownloadCSV(repo, e) }}
+              onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleDownloadCSV(repo, e) }}
               disabled={downloading === repo.id}
             >
               <Download className="w-4 h-4" />

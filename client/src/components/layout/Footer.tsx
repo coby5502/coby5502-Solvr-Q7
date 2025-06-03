@@ -1,5 +1,3 @@
-import { Github } from 'lucide-react'
-
 export function Footer() {
   const title = import.meta.env.VITE_APP_TITLE || '릴리즈 트래커'
   return (
